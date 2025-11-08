@@ -1,0 +1,11 @@
+    # Sanal ortam klasörleri
+    venv/
+    env/
+    .venv/
+    
+    # Python önbellek dosyaları
+    __pycache__/
+    *.pyc
+    
+    # Streamlit önbelleği
+    .streamlit/secrets.toml
