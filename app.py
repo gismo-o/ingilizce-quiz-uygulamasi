@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go 
+import plotly.graph_objects as go
 
 # ANİMASYON VE GÖRSEL SKOR İÇİN STİLLER
 st.markdown("""
@@ -114,32 +114,26 @@ else:
     goruntulenecek_df = df[df['hafta'] == int(secilen_hafta)]
 
 # GELİŞTİRİLMİŞ TABLO GÖRÜNÜMÜ
-
-# CSS ile özel bir tablo stili oluşturuyoruz
 st.sidebar.markdown("""
 <style>
 .sidebar-table {
     width: 100%;
     font-size: 0.9em;
 }
-.sidebar-table th { /* Tablo başlıkları */
+.sidebar-table th {
     text-align: left;
     background-color: #333;
     padding: 6px;
 }
-.sidebar-table td { /* Tablo hücreleri */
+.sidebar-table td {
     padding: 6px;
     border-bottom: 1px solid #444;
-    white-space: normal !important; /* Metinlerin alt satıra kaymasını sağlar */
-    word-wrap: break-word !important; /* Uzun kelimeleri kırar */
+    white-space: normal !important;
+    word-wrap: break-word !important;
 }
 </style>
 """, unsafe_allow_html=True)
-
-# DataFrame'i HTML'e dönüştürüp özel sınıfımızı ekliyoruz
 table_html = goruntulenecek_df.to_html(index=False, escape=False, classes="sidebar-table")
-
-# HTML tablosunu sidebar'da gösteriyoruz
 st.sidebar.markdown(table_html, unsafe_allow_html=True)
 
 
@@ -171,25 +165,20 @@ if not st.session_state.quiz_started:
             default=haftalar[0] if haftalar else None
         )
 
-        # KAYDIRICIYI DİNAMİK HALE GETİRME
-        
-        # Önce mevcut kelime sayısını hesapla
         if not secilen_haftalar:
-            # Hiç hafta seçilmediyse, slider'ı devre dışı bırak ve 1 yap
             available_words = 1
             st.warning("Lütfen soru sayısı seçmeden önce en az bir hafta seçin.")
         else:
             filtered_df_for_slider = df[df['hafta'].isin(secilen_haftalar)]
             available_words = len(filtered_df_for_slider)
 
-        # Slider'ın maksimum değerini mevcut kelime sayısına ayarla
         question_count = st.slider(
             label="**2. Adım:** Soru sayısını belirleyin:",
             min_value=1,
-            max_value=available_words,  # max_value artık dinamik!
-            value=min(15, available_words), # Başlangıç değeri de max'ı geçmemeli
+            max_value=available_words,
+            value=min(15, available_words),
             step=1,
-            disabled=(not secilen_haftalar) # Hafta seçilmediyse devre dışı bırak
+            disabled=(not secilen_haftalar)
         )
 
         st.write("")
@@ -197,12 +186,10 @@ if not st.session_state.quiz_started:
             if not secilen_haftalar:
                 st.warning("Lütfen quiz için en az bir hafta seçin.")
             else:
-                # Buradaki hesaplama artık daha basit, çünkü question_count zaten sınırlar içinde
                 filtered_df = df[df['hafta'].isin(secilen_haftalar)]
                 if question_count == 0:
                     st.error("Seçtiğiniz haftalarda çalışılacak kelime bulunamadı.")
                 else:
-                    # min() fonksiyonuna artık gerek yok ama güvenlik için kalabilir
                     quiz_df = filtered_df.sample(n=question_count).reset_index(drop=True)
                     st.session_state.quiz_words = quiz_df.to_dict('records')
                     st.session_state.current_quiz_index = 0
@@ -212,37 +199,27 @@ if not st.session_state.quiz_started:
                     st.session_state.answer_submitted = False
                     st.rerun()
 
-# Quiz başladıysa soru ekranını göster
+# --- DÜZELTİLMİŞ YAPI: QUIZ BAŞLADIYSA ---
 else:
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("← Quizden Çık"):
-            st.session_state.quiz_started = False
-            st.rerun()
     total_quiz_words = len(st.session_state.quiz_words)
     current_index = st.session_state.current_quiz_index
-    with col2:
-        st.progress(current_index / total_quiz_words, text=f"Soru {current_index + 1} / {total_quiz_words}")
-    st.markdown("---")
 
-    # Quiz bittiyse sonuç ekranı
+    # ÖNCE QUIZ'İN BİTİP BİTMEDİĞİNİ KONTROL ET
     if current_index >= total_quiz_words:
+        # EĞER BİTTİYSE, SADECE SONUÇ EKRANINI GÖSTER
         with st.container(border=True):
             st.markdown(f"<h2 style='text-align: center;'>🎉 Quiz Tamamlandı!</h2>", unsafe_allow_html=True)
             
             score = st.session_state.score
             percentage = (score / total_quiz_words) * 100 if total_quiz_words > 0 else 0
             
-            # GÖRSEL SKOR GÖSTERGESİ
-            # Başarıya göre renk belirle
             if percentage >= 90:
-                progress_color = "#28a745" # Yeşil
+                progress_color = "#28a745"
             elif percentage >= 70:
-                progress_color = "#17a2b8" # Mavi/Info
+                progress_color = "#17a2b8"
             else:
-                progress_color = "#ffc107" # Sarı/Uyarı
+                progress_color = "#ffc107"
 
-            # Dairesel ilerleme çubuğu için HTML oluştur
             progress_bar_html = f"""
             <div class="progress-circle-container">
                 <div class="progress-circle" style="background: conic-gradient({progress_color} {percentage * 3.6}deg, #444 0deg);">
@@ -260,41 +237,51 @@ else:
             else:
                 st.warning("💪 Çalışmaya devam! Yanlış yaptığın kelimeleri gözden geçirebilirsin.")
 
-            # Doğru/Yanlış oranını gösteren basit bir grafik
             fig = go.Figure(go.Bar(
-                x=[score, total_quiz_words - score],
-                y=['', ''], # Kategorileri gizlemek için boş bırak
-                orientation='h',
+                x=[score, total_quiz_words - score], y=['', ''], orientation='h',
                 marker_color=['#28a745', '#dc3545'],
                 text=[f"Doğru: {score}", f"Yanlış: {total_quiz_words - score}"],
                 textposition='auto'
             ))
             fig.update_layout(
-                showlegend=False,
-                barmode='stack',
+                showlegend=False, barmode='stack',
                 xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                 yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                height=100,
-                margin=dict(l=10, r=10, t=10, b=10)
+                plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                height=100, margin=dict(l=10, r=10, t=10, b=10)
             )
             st.plotly_chart(fig, use_container_width=True)
-
 
             if st.session_state.incorrect_answers:
                 st.write("")
                 st.markdown("#### Gözden Geçirmen Gerekenler:")
                 incorrect_df = pd.DataFrame(st.session_state.incorrect_answers)
                 st.dataframe(incorrect_df)
+            
+            # Sonuç ekranında butonları yan yana göster
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔄 Yeni Quiz Başlat", use_container_width=True):
+                    st.session_state.quiz_started = False
+                    st.rerun()
+            with col2:
+                if st.button("🚪 Çıkış", use_container_width=True, type="secondary"):
+                    st.session_state.quiz_started = False
+                    st.rerun()
 
-            if st.button("🔄 Yeni Quiz Başlat", use_container_width=True):
+    # EĞER QUIZ DEVAM EDİYORSA, SORU EKRANINI GÖSTER
+    else:
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("← Quizden Çık"):
                 st.session_state.quiz_started = False
                 st.rerun()
+        with col2:
+            st.progress(current_index / total_quiz_words, text=f"Soru {current_index + 1} / {total_quiz_words}")
+        st.markdown("---")
 
-    # Henüz soru varsa
-    else:
         current_word = st.session_state.quiz_words[current_index]
+
         with st.container(border=True):
             st.markdown(f"<h2>“{current_word['turkce']}”</h2>", unsafe_allow_html=True)
             st.markdown(f"<h6><i>(Hafta {current_word['hafta']})</i></h6>", unsafe_allow_html=True)
@@ -302,6 +289,7 @@ else:
             user_v1_answer = st.text_input("Birinci Hali (V1):", key=f"v1_{current_index}", label_visibility="collapsed", placeholder="Birinci Hali (V1)", disabled=st.session_state.answer_submitted)
             user_v2_answer = st.text_input("İkinci Hali (V2):", key=f"v2_{current_index}", label_visibility="collapsed", placeholder="İkinci Hali (V2)", disabled=st.session_state.answer_submitted)
             feedback_placeholder = st.empty()
+
             if not st.session_state.answer_submitted:
                 if st.button("Cevabı Kontrol Et", type="primary", use_container_width=True):
                     st.session_state.user_v1 = user_v1_answer
@@ -340,7 +328,6 @@ else:
                     st.session_state.answer_submitted = True
                     st.rerun()
             else:
-                # ANİMASYONLU GERİ BİLDİRİM BÖLÜMÜ
                 if st.session_state.is_correct:
                     feedback_html = """
                     <div class="pulse">
@@ -358,7 +345,17 @@ else:
                     """
                     feedback_placeholder.markdown(feedback_html, unsafe_allow_html=True)
                 
-                if st.button("Sonraki Soru →", type="primary", use_container_width=True):
+                # Mevcut sorunun son soru olup olmadığını kontrol et
+                is_last_question = (current_index == total_quiz_words - 1)
+                
+                # Koşula göre buton metnini belirle
+                if is_last_question:
+                    button_text = "🏁 Quizi Bitir"
+                else:
+                    button_text = "Sonraki Soru →"
+                
+                # Butonu dinamik metin ile oluştur
+                if st.button(button_text, type="primary", use_container_width=True):
                     st.session_state.current_quiz_index += 1
                     st.session_state.answer_submitted = False
                     st.session_state.score_counted = False
