@@ -1,16 +1,18 @@
 import streamlit as st
 import pandas as pd
-import time
+import plotly.graph_objects as go 
 
+# ANİMASYON VE GÖRSEL SKOR İÇİN STİLLER
 st.markdown("""
 <style>
+/* Mevcut Stilleriniz */
 .title-block {
     text-align: center;
-    border-bottom: 3px solid #e64f4f; /* Çizgi artık kapsayıcının altında */
-    padding-bottom: 15px; /* Çizgi ile altındaki içerik arasına boşluk */
+    border-bottom: 3px solid #e64f4f;
+    padding-bottom: 15px;
 }
 .title-block h1 {
-    margin-bottom: 0; /* Başlığın altındaki varsayılan boşluğu kaldır */
+    margin-bottom: 0;
     color: white;
 }
 .title-block p {
@@ -18,8 +20,61 @@ st.markdown("""
     font-size: 1.2em;
     color: #a0a0a0;
 }
+
+/* YANLIŞ CEVAP İÇİN SALLANMA ANİMASYONU */
+@keyframes shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(5px); }
+  50% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+  100% { transform: translateX(0); }
+}
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* DOĞRU CEVAP İÇİN VURGU ANİMASYONU */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.pulse {
+  animation: pulse 0.5s ease-in-out;
+}
+
+/* DAİRESEL SKOR GÖSTERGESİ İÇİN STİLLER */
+.progress-circle-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 20px 0;
+}
+.progress-circle {
+    width: 150px;
+    height: 150px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    background: conic-gradient(#28a745 0deg, #444 0deg); /* Başlangıç değeri */
+}
+.progress-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: white;
+    background-color: #1c1c2e; /* İç arka plan rengi */
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 </style>
 """, unsafe_allow_html=True)
+
 
 # SAYFA YAPILANDIRMASI
 st.set_page_config(
@@ -31,9 +86,17 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     df = pd.read_csv("kelimeler.csv")
+    df['ingilizce_v1'] = df['ingilizce_v1'].astype(str)
+    df['ingilizce_v2'] = df['ingilizce_v2'].astype(str)
     return df
 
 df = load_data()
+
+# NORMALLEŞTİRME FONKSİYONU
+def normalize_answer(text):
+    if not isinstance(text, str):
+        return ""
+    return text.lower().strip().replace(" ", "")
 
 # YAN MENÜ (SIDEBAR) - KELİME LİSTESİ
 st.sidebar.header("📚 Kelime Listesi")
@@ -50,7 +113,34 @@ if secilen_hafta == "Tümü":
 else:
     goruntulenecek_df = df[df['hafta'] == int(secilen_hafta)]
 
-st.sidebar.dataframe(goruntulenecek_df, height=300)
+# GELİŞTİRİLMİŞ TABLO GÖRÜNÜMÜ
+
+# CSS ile özel bir tablo stili oluşturuyoruz
+st.sidebar.markdown("""
+<style>
+.sidebar-table {
+    width: 100%;
+    font-size: 0.9em;
+}
+.sidebar-table th { /* Tablo başlıkları */
+    text-align: left;
+    background-color: #333;
+    padding: 6px;
+}
+.sidebar-table td { /* Tablo hücreleri */
+    padding: 6px;
+    border-bottom: 1px solid #444;
+    white-space: normal !important; /* Metinlerin alt satıra kaymasını sağlar */
+    word-wrap: break-word !important; /* Uzun kelimeleri kırar */
+}
+</style>
+""", unsafe_allow_html=True)
+
+# DataFrame'i HTML'e dönüştürüp özel sınıfımızı ekliyoruz
+table_html = goruntulenecek_df.to_html(index=False, escape=False, classes="sidebar-table")
+
+# HTML tablosunu sidebar'da gösteriyoruz
+st.sidebar.markdown(table_html, unsafe_allow_html=True)
 
 
 # ANA SAYFA - QUIZ MODU
@@ -80,25 +170,40 @@ if not st.session_state.quiz_started:
             options=haftalar,
             default=haftalar[0] if haftalar else None
         )
-        question_count = st.number_input(
+
+        # KAYDIRICIYI DİNAMİK HALE GETİRME
+        
+        # Önce mevcut kelime sayısını hesapla
+        if not secilen_haftalar:
+            # Hiç hafta seçilmediyse, slider'ı devre dışı bırak ve 1 yap
+            available_words = 1
+            st.warning("Lütfen soru sayısı seçmeden önce en az bir hafta seçin.")
+        else:
+            filtered_df_for_slider = df[df['hafta'].isin(secilen_haftalar)]
+            available_words = len(filtered_df_for_slider)
+
+        # Slider'ın maksimum değerini mevcut kelime sayısına ayarla
+        question_count = st.slider(
             label="**2. Adım:** Soru sayısını belirleyin:",
             min_value=1,
-            max_value=200,
-            value=15,
-            step=1
+            max_value=available_words,  # max_value artık dinamik!
+            value=min(15, available_words), # Başlangıç değeri de max'ı geçmemeli
+            step=1,
+            disabled=(not secilen_haftalar) # Hafta seçilmediyse devre dışı bırak
         )
+
         st.write("")
         if st.button("Quizi Başlat", type="primary", use_container_width=True):
             if not secilen_haftalar:
                 st.warning("Lütfen quiz için en az bir hafta seçin.")
             else:
+                # Buradaki hesaplama artık daha basit, çünkü question_count zaten sınırlar içinde
                 filtered_df = df[df['hafta'].isin(secilen_haftalar)]
-                available_words = len(filtered_df)
-                count_to_sample = min(question_count, available_words)
-                if count_to_sample == 0:
+                if question_count == 0:
                     st.error("Seçtiğiniz haftalarda çalışılacak kelime bulunamadı.")
                 else:
-                    quiz_df = filtered_df.sample(n=count_to_sample).reset_index(drop=True)
+                    # min() fonksiyonuna artık gerek yok ama güvenlik için kalabilir
+                    quiz_df = filtered_df.sample(n=question_count).reset_index(drop=True)
                     st.session_state.quiz_words = quiz_df.to_dict('records')
                     st.session_state.current_quiz_index = 0
                     st.session_state.score = 0
@@ -123,22 +228,66 @@ else:
     # Quiz bittiyse sonuç ekranı
     if current_index >= total_quiz_words:
         with st.container(border=True):
-            score = st.session_state.score
-            success_rate = (score / total_quiz_words) * 100 if total_quiz_words > 0 else 0
             st.markdown(f"<h2 style='text-align: center;'>🎉 Quiz Tamamlandı!</h2>", unsafe_allow_html=True)
-            st.markdown(f"<h3 style='text-align: center;'>Skorun: <b>{score} / {total_quiz_words}</b></h3>", unsafe_allow_html=True)
-            if success_rate >= 90:
+            
+            score = st.session_state.score
+            percentage = (score / total_quiz_words) * 100 if total_quiz_words > 0 else 0
+            
+            # GÖRSEL SKOR GÖSTERGESİ
+            # Başarıya göre renk belirle
+            if percentage >= 90:
+                progress_color = "#28a745" # Yeşil
+            elif percentage >= 70:
+                progress_color = "#17a2b8" # Mavi/Info
+            else:
+                progress_color = "#ffc107" # Sarı/Uyarı
+
+            # Dairesel ilerleme çubuğu için HTML oluştur
+            progress_bar_html = f"""
+            <div class="progress-circle-container">
+                <div class="progress-circle" style="background: conic-gradient({progress_color} {percentage * 3.6}deg, #444 0deg);">
+                    <div class="progress-value">{score}/{total_quiz_words}</div>
+                </div>
+            </div>
+            """
+            st.markdown(progress_bar_html, unsafe_allow_html=True)
+
+            if percentage >= 90:
                 st.success("🏆 Mükemmel! Bu haftayı çok iyi öğrenmişsin.")
                 st.balloons()
-            elif success_rate >= 70:
+            elif percentage >= 70:
                 st.info("👍 Harika gidiyorsun! Birkaç kelimeyi tekrar etmen yeterli.")
             else:
                 st.warning("💪 Çalışmaya devam! Yanlış yaptığın kelimeleri gözden geçirebilirsin.")
+
+            # Doğru/Yanlış oranını gösteren basit bir grafik
+            fig = go.Figure(go.Bar(
+                x=[score, total_quiz_words - score],
+                y=['', ''], # Kategorileri gizlemek için boş bırak
+                orientation='h',
+                marker_color=['#28a745', '#dc3545'],
+                text=[f"Doğru: {score}", f"Yanlış: {total_quiz_words - score}"],
+                textposition='auto'
+            ))
+            fig.update_layout(
+                showlegend=False,
+                barmode='stack',
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                height=100,
+                margin=dict(l=10, r=10, t=10, b=10)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+
             if st.session_state.incorrect_answers:
                 st.write("")
                 st.markdown("#### Gözden Geçirmen Gerekenler:")
                 incorrect_df = pd.DataFrame(st.session_state.incorrect_answers)
                 st.dataframe(incorrect_df)
+
             if st.button("🔄 Yeni Quiz Başlat", use_container_width=True):
                 st.session_state.quiz_started = False
                 st.rerun()
@@ -146,34 +295,33 @@ else:
     # Henüz soru varsa
     else:
         current_word = st.session_state.quiz_words[current_index]
-
-        # Soru kutusu artık varsayılan tema rengini kullanacak
         with st.container(border=True):
             st.markdown(f"<h2>“{current_word['turkce']}”</h2>", unsafe_allow_html=True)
             st.markdown(f"<h6><i>(Hafta {current_word['hafta']})</i></h6>", unsafe_allow_html=True)
             st.write("Yukarıdaki ifadenin İngilizce karşılıklarını yazın:")
-
             user_v1_answer = st.text_input("Birinci Hali (V1):", key=f"v1_{current_index}", label_visibility="collapsed", placeholder="Birinci Hali (V1)", disabled=st.session_state.answer_submitted)
             user_v2_answer = st.text_input("İkinci Hali (V2):", key=f"v2_{current_index}", label_visibility="collapsed", placeholder="İkinci Hali (V2)", disabled=st.session_state.answer_submitted)
-
             feedback_placeholder = st.empty()
-
             if not st.session_state.answer_submitted:
                 if st.button("Cevabı Kontrol Et", type="primary", use_container_width=True):
                     st.session_state.user_v1 = user_v1_answer
                     st.session_state.user_v2 = user_v2_answer
-                    correct_v1 = current_word['ingilizce_v1'].strip().lower()
-                    correct_v2 = current_word['ingilizce_v2'].strip().lower()
-                    user_v1_clean = user_v1_answer.strip().lower()
+                    correct_v1_raw = current_word['ingilizce_v1']
+                    correct_v2_raw = current_word['ingilizce_v2']
+                    correct_v1_clean = correct_v1_raw.strip().lower()
                     user_v2_clean = user_v2_answer.strip().lower()
-                    final_user_v2 = ""
-                    if ' ' not in user_v2_clean and ' ' in correct_v1:
-                        v1_verb = correct_v1.split(' ')[0]
-                        v1_object = correct_v1.replace(v1_verb, '').strip()
-                        final_user_v2 = f"{user_v2_clean} {v1_object}"
-                    else:
-                        final_user_v2 = user_v2_clean
-                    is_correct = (user_v1_clean == correct_v1 and final_user_v2 == correct_v2)
+                    final_user_v2 = user_v2_clean
+                    if ' ' in correct_v1_clean and ' ' not in user_v2_clean:
+                        try:
+                            v1_verb = correct_v1_clean.split(' ')[0]
+                            v1_object = correct_v1_clean.replace(v1_verb, '').strip()
+                            final_user_v2 = f"{user_v2_clean} {v1_object}"
+                        except IndexError:
+                            final_user_v2 = user_v2_clean
+                    is_correct = (
+                        normalize_answer(user_v1_answer) == normalize_answer(correct_v1_raw) and
+                        normalize_answer(final_user_v2) == normalize_answer(correct_v2_raw)
+                    )
                     st.session_state.is_correct = is_correct
                     if is_correct:
                         if not st.session_state.get('score_counted', False):
@@ -181,17 +329,35 @@ else:
                             st.session_state.score_counted = True
                     else:
                         if not st.session_state.get('score_counted', False):
-                            st.session_state.incorrect_answers.append({ 'Türkçe': current_word['turkce'], 'Doğru V1': correct_v1, 'Doğru V2': correct_v2, 'Senin Cevabın V1': user_v1_answer, 'Senin Cevabın V2': user_v2_answer})
+                            st.session_state.incorrect_answers.append({
+                                'Türkçe': current_word['turkce'],
+                                'Doğru V1': correct_v1_raw.strip(),
+                                'Doğru V2': correct_v2_raw.strip(),
+                                'Senin Cevabın V1': user_v1_answer,
+                                'Senin Cevabın V2': user_v2_answer
+                            })
                             st.session_state.score_counted = True
                     st.session_state.answer_submitted = True
                     st.rerun()
             else:
+                # ANİMASYONLU GERİ BİLDİRİM BÖLÜMÜ
                 if st.session_state.is_correct:
-                    feedback_placeholder.markdown("<h3 style='color: #28a745; text-align: center;'><b>Doğru! 🎉</b></h3>", unsafe_allow_html=True)
+                    feedback_html = """
+                    <div class="pulse">
+                        <h3 style='color: #28a745; text-align: center;'><b>Doğru! 🎉</b></h3>
+                    </div>
+                    """
+                    feedback_placeholder.markdown(feedback_html, unsafe_allow_html=True)
                 else:
-                    correct_v1 = current_word['ingilizce_v1'].strip().lower()
-                    correct_v2 = current_word['ingilizce_v2'].strip().lower()
-                    feedback_placeholder.markdown(f"<h4 style='color: #dc3545; text-align: center;'><b>Yanlış!</b><br>Doğru cevap: <code>{correct_v1}</code> → <code>{correct_v2}</code></h4>", unsafe_allow_html=True)
+                    correct_v1 = current_word['ingilizce_v1'].strip()
+                    correct_v2 = current_word['ingilizce_v2'].strip()
+                    feedback_html = f"""
+                    <div class="shake">
+                         <h4 style='color: #dc3545; text-align: center;'><b>Yanlış!</b><br>Doğru cevap: <code>{correct_v1}</code> → <code>{correct_v2}</code></h4>
+                    </div>
+                    """
+                    feedback_placeholder.markdown(feedback_html, unsafe_allow_html=True)
+                
                 if st.button("Sonraki Soru →", type="primary", use_container_width=True):
                     st.session_state.current_quiz_index += 1
                     st.session_state.answer_submitted = False
