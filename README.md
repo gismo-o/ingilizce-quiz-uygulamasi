@@ -66,8 +66,8 @@ Projeyi kendi bilgisayarınızda çalıştırmak isterseniz, aşağıdaki adıml
 1.  **Projeyi Klonlayın:**
 
     ```bash
-    git clone https://github.com/KULLANICI_ADINIZ/PROJE_ADINIZ.git
-    cd PROJE_ADINIZ
+    git clone https://github.com/gismo-o/ingilizce-quiz-uygulamasi.git
+    cd ingilizce-quiz-uygulamasi
     ```
 
 2.  **Sanal Ortamı Oluşturun ve Aktifleştirin:**
