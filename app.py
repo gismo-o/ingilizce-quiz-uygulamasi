@@ -199,7 +199,7 @@ if not st.session_state.quiz_started:
                     st.session_state.answer_submitted = False
                     st.rerun()
 
-# --- DÜZELTİLMİŞ YAPI: QUIZ BAŞLADIYSA ---
+# QUIZ BAŞLADIYSA 
 else:
     total_quiz_words = len(st.session_state.quiz_words)
     current_index = st.session_state.current_quiz_index
@@ -241,7 +241,9 @@ else:
                 x=[score, total_quiz_words - score], y=['', ''], orientation='h',
                 marker_color=['#28a745', '#dc3545'],
                 text=[f"Doğru: {score}", f"Yanlış: {total_quiz_words - score}"],
-                textposition='auto'
+                insidetextanchor='middle',
+                textposition='inside',
+                textfont=dict(color='white', weight='bold', size=14)
             ))
             fig.update_layout(
                 showlegend=False, barmode='stack',
@@ -258,16 +260,9 @@ else:
                 incorrect_df = pd.DataFrame(st.session_state.incorrect_answers)
                 st.dataframe(incorrect_df)
             
-            # Sonuç ekranında butonları yan yana göster
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("🔄 Yeni Quiz Başlat", use_container_width=True):
-                    st.session_state.quiz_started = False
-                    st.rerun()
-            with col2:
-                if st.button("🚪 Çıkış", use_container_width=True, type="secondary"):
-                    st.session_state.quiz_started = False
-                    st.rerun()
+            if st.button("🔄 Yeni Quiz Başlat", use_container_width=True):
+                st.session_state.quiz_started = False
+                st.rerun()
 
     # EĞER QUIZ DEVAM EDİYORSA, SORU EKRANINI GÖSTER
     else:
